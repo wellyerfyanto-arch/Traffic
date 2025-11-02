@@ -13,6 +13,49 @@ import json
 import os
 import re
 
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
+def setup_driver_with_proxy(proxy_list):
+    """Setup Chrome driver dengan proxy dan user agent acak"""
+    chrome_options = Options()
+    
+    # Setup untuk environment Render
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    
+    # Random user agent
+    user_agent = ua.random
+    chrome_options.add_argument(f"user-agent={user_agent}")
+    
+    # Random proxy jika tersedia
+    if proxy_list and len(proxy_list) > 0:
+        proxy = random.choice(proxy_list)
+        chrome_options.add_argument(f"--proxy-server={proxy}")
+    else:
+        proxy = "No Proxy"
+    
+    # Setup ChromeDriver untuk Render
+    chrome_options.binary_location = "/usr/bin/google-chrome-stable"
+    
+    try:
+        driver = webdriver.Chrome(
+            service=Service('/usr/local/bin/chromedriver'),
+            options=chrome_options
+        )
+    except Exception as e:
+        # Fallback: try without service
+        driver = webdriver.Chrome(options=chrome_options)
+    
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
+    return driver, proxy, user_agent
+
 app = Flask(__name__)
 
 # Inisialisasi User Agent
