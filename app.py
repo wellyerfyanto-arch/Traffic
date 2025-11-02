@@ -13,48 +13,12 @@ import json
 import os
 import re
 
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+# Tidak menggunakan Service dan ChromeDriverManager untuk stabilitas container
+# from selenium.webdriver.chrome.service import Service
+# from webdriver_manager.chrome import ChromeDriverManager
 
-def setup_driver_with_proxy(proxy_list):
-    """Setup Chrome driver dengan proxy dan user agent acak"""
-    chrome_options = Options()
-    
-    # Setup untuk environment Render
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    
-    # Random user agent
-    user_agent = ua.random
-    chrome_options.add_argument(f"user-agent={user_agent}")
-    
-    # Random proxy jika tersedia
-    if proxy_list and len(proxy_list) > 0:
-        proxy = random.choice(proxy_list)
-        chrome_options.add_argument(f"--proxy-server={proxy}")
-    else:
-        proxy = "No Proxy"
-    
-    # Setup ChromeDriver untuk Render
-    chrome_options.binary_location = "/usr/bin/google-chrome-stable"
-    
-    try:
-        driver = webdriver.Chrome(
-            service=Service('/usr/local/bin/chromedriver'),
-            options=chrome_options
-        )
-    except Exception as e:
-        # Fallback: try without service
-        driver = webdriver.Chrome(options=chrome_options)
-    
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    
-    return driver, proxy, user_agent
+# Global state lock untuk melindungi active_sessions
+sessions_lock = threading.Lock()
 
 app = Flask(__name__)
 
@@ -75,31 +39,36 @@ def validate_proxy(proxy):
     return False
 
 def format_proxy(proxy):
-    """Format proxy ke bentuk yang benar"""
+    """Format proxy ke bentuk yang benar (http://IP:PORT)"""
     proxy = proxy.strip()
     if not proxy.startswith(('http://', 'https://')):
         proxy = 'http://' + proxy
     return proxy
 
 def check_ip_leak(driver):
-    """Cek kebocoran IP address"""
+    """Cek kebocoran IP address dari dalam browser"""
     try:
         driver.get("https://api.ipify.org?format=json")
-        time.sleep(2)
-        ip_element = driver.find_element(By.TAG_NAME, "pre")
+        # Menggunakan WebDriverWait untuk menunggu elemen agar lebih stabil
+        ip_element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
         ip_data = json.loads(ip_element.text)
-        return ip_data["ip"]
-    except:
+        return ip_data.get("ip")
+    except Exception as e:
+        print(f"IP check error: {e}")
         return None
 
+# Fungsi ini adalah hasil konsolidasi, yang sebelumnya terduplikasi
 def setup_driver_with_proxy(proxy_list):
     """Setup Chrome driver dengan proxy dan user agent acak"""
     chrome_options = Options()
     
-    # Setup headless
+    # Setup headless dan parameter anti-deteksi yang penting
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -111,20 +80,42 @@ def setup_driver_with_proxy(proxy_list):
     # Random proxy jika tersedia
     if proxy_list and len(proxy_list) > 0:
         proxy = random.choice(proxy_list)
-        chrome_options.add_argument(f"--proxy-server={proxy}")
+        formatted_proxy = format_proxy(proxy)
+        chrome_options.add_argument(f"--proxy-server={formatted_proxy}")
     else:
         proxy = "No Proxy"
     
-    driver = webdriver.Chrome(options=chrome_options)
+    # Konfigurasi binary_location biasanya diperlukan di platform seperti Render/Docker
+    # Jika path tidak ditemukan, baris ini dapat menyebabkan error, namun dipertahankan
+    # karena komentar mengindikasikan target Render.
+    if os.path.exists("/usr/bin/google-chrome-stable"):
+        chrome_options.binary_location = "/usr/bin/google-chrome-stable"
+        
+    try:
+        # Menggunakan inisialisasi driver standar
+        driver = webdriver.Chrome(options=chrome_options)
+    except Exception as e:
+        print(f"Error initializing WebDriver: {e}")
+        return None, proxy, user_agent # Mengembalikan None jika gagal
+    
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
     return driver, proxy, user_agent
 
 def simulate_traffic(url, proxy_list, session_data):
     """Simulasi traffic otomatis"""
+    driver = None
     try:
         # Setup driver
         driver, proxy, user_agent = setup_driver_with_proxy(proxy_list)
+        
+        # Penanganan jika driver gagal diinisialisasi
+        if driver is None:
+            session_data['status'] = 'Driver setup failed. Aborting session.'
+            session_data['error'] = True
+            session_data['error_message'] = 'Could not initialize WebDriver.'
+            return
+
         session_data['status'] = 'Setting up browser...'
         session_data['proxy'] = proxy
         session_data['user_agent'] = user_agent
@@ -144,16 +135,7 @@ def simulate_traffic(url, proxy_list, session_data):
                 'ip_address': current_ip
             }
         else:
-            session_data['status'] = 'IP check failed, trying without proxy...'
-            # Coba tanpa proxy
-            driver.quit()
-            chrome_options = Options()
-            chrome_options.add_argument("--headless")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument(f"user-agent={user_agent}")
-            driver = webdriver.Chrome(options=chrome_options)
-            session_data['status'] = 'Retrying without proxy...'
+            session_data['status'] = 'IP check failed, continuing with current driver...'
         
         # Buka URL target
         session_data['status'] = f'Opening URL: {url}'
@@ -172,8 +154,8 @@ def simulate_traffic(url, proxy_list, session_data):
                 session_data['status'] = f'Clicking post: {post_url[:50]}...'
                 driver.get(post_url)
                 time.sleep(random.uniform(4, 8))
-            except:
-                session_data['status'] = 'Failed to click post, continuing...'
+            except Exception as e:
+                session_data['status'] = f'Failed to click post: {str(e)}'
         else:
             session_data['status'] = 'No posts found, performing alternative actions...'
         
@@ -234,7 +216,8 @@ def simulate_traffic(url, proxy_list, session_data):
     
     finally:
         try:
-            driver.quit()
+            if driver:
+                driver.quit()
         except:
             pass
 
@@ -249,7 +232,7 @@ def index():
 def start_traffic():
     data = request.json
     url = data.get('url')
-    session_count = data.get('session_count', 1)
+    session_count = int(data.get('session_count', 1))
     custom_proxies = data.get('proxies', '')
     
     if not url:
@@ -264,31 +247,34 @@ def start_traffic():
                 proxy_list.append(format_proxy(proxy))
     
     session_ids = []
-    for i in range(session_count):
-        session_id = f"session_{int(time.time())}_{i}"
-        session_data = {
-            'id': session_id,
-            'url': url,
-            'status': 'Initializing...',
-            'started_at': time.time(),
-            'completed': False,
-            'error': False,
-            'proxy': None,
-            'user_agent': None,
-            'ip_address': None,
-            'details': {}
-        }
-        
-        active_sessions[session_id] = session_data
-        session_ids.append(session_id)
-        
-        # Jalankan di thread terpisah
-        thread = threading.Thread(
-            target=simulate_traffic, 
-            args=(url, proxy_list, session_data)
-        )
-        thread.daemon = True
-        thread.start()
+    
+    # Menggunakan lock saat memodifikasi active_sessions
+    with sessions_lock:
+        for i in range(session_count):
+            session_id = f"session_{int(time.time())}_{i}"
+            session_data = {
+                'id': session_id,
+                'url': url,
+                'status': 'Initializing...',
+                'started_at': time.time(),
+                'completed': False,
+                'error': False,
+                'proxy': None,
+                'user_agent': None,
+                'ip_address': None,
+                'details': {}
+            }
+            
+            active_sessions[session_id] = session_data
+            session_ids.append(session_id)
+            
+            # Jalankan di thread terpisah
+            thread = threading.Thread(
+                target=simulate_traffic, 
+                args=(url, proxy_list, session_data)
+            )
+            thread.daemon = True
+            thread.start()
     
     return jsonify({
         'message': f'Started {session_count} session(s)',
@@ -298,38 +284,44 @@ def start_traffic():
 
 @app.route('/session_status/<session_id>')
 def session_status(session_id):
-    session_data = active_sessions.get(session_id)
-    if not session_data:
-        return jsonify({'error': 'Session not found'}), 404
-    
-    return jsonify(session_data)
+    # Menggunakan lock saat membaca active_sessions
+    with sessions_lock:
+        session_data = active_sessions.get(session_id)
+        if not session_data:
+            return jsonify({'error': 'Session not found'}), 404
+        
+        return jsonify(session_data)
 
 @app.route('/active_sessions')
 def get_active_sessions():
-    active_count = len([s for s in active_sessions.values() if not s.get('completed') and not s.get('error')])
-    completed_count = len([s for s in active_sessions.values() if s.get('completed')])
-    error_count = len([s for s in active_sessions.values() if s.get('error')])
-    
-    return jsonify({
-        'sessions': list(active_sessions.keys()),
-        'counts': {
-            'active': active_count,
-            'completed': completed_count,
-            'error': error_count,
-            'total': len(active_sessions)
-        }
-    })
+    # Menggunakan lock saat membaca active_sessions
+    with sessions_lock:
+        active_count = len([s for s in active_sessions.values() if not s.get('completed') and not s.get('error')])
+        completed_count = len([s for s in active_sessions.values() if s.get('completed')])
+        error_count = len([s for s in active_sessions.values() if s.get('error')])
+        
+        return jsonify({
+            'sessions': list(active_sessions.keys()),
+            'counts': {
+                'active': active_count,
+                'completed': completed_count,
+                'error': error_count,
+                'total': len(active_sessions)
+            }
+        })
 
 @app.route('/clear_sessions')
 def clear_sessions():
-    completed_sessions = [k for k, v in active_sessions.items() if v.get('completed') or v.get('error')]
-    for session_id in completed_sessions:
-        del active_sessions[session_id]
-    
-    return jsonify({
-        'message': f'Cleared {len(completed_sessions)} sessions',
-        'remaining': len(active_sessions)
-    })
+    # Menggunakan lock saat memodifikasi active_sessions
+    with sessions_lock:
+        completed_sessions = [k for k, v in active_sessions.items() if v.get('completed') or v.get('error')]
+        for session_id in completed_sessions:
+            del active_sessions[session_id]
+        
+        return jsonify({
+            'message': f'Cleared {len(completed_sessions)} sessions',
+            'remaining': len(active_sessions)
+        })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
