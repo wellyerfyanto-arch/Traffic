@@ -1,9 +1,10 @@
 services:
   - type: web
-    name: google-traffic
+    name: google-traffic-app
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
+    startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.0
+        value: 3.11.4
