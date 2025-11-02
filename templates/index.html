@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Traffic Generator - Multi Proxy</title>
+    <title>Google Traffic Generator - Live View</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
-        <h1>Google Traffic Generator - Multi Proxy</h1>
+        <h1>🚀 Google Traffic Generator - Live View</h1>
         
         <div class="dashboard">
             <div class="stats">
@@ -24,12 +24,17 @@
                     <h3>Status</h3>
                     <span id="globalStatus">Ready</span>
                 </div>
+                <div class="stat-card">
+                    <h3>Iterasi</h3>
+                    <span id="iterationStatus">0/0</span>
+                </div>
             </div>
         </div>
         
         <div class="tabs">
-            <button class="tab-button active" onclick="openTab('trafficTab')">Traffic Generator</button>
-            <button class="tab-button" onclick="openTab('proxyTab')">Proxy Management</button>
+            <button class="tab-button active" onclick="openTab('trafficTab')">🎯 Traffic Generator</button>
+            <button class="tab-button" onclick="openTab('proxyTab')">🔧 Proxy Management</button>
+            <button class="tab-button" onclick="openTab('liveViewTab')">👁️ Live View</button>
         </div>
         
         <!-- Traffic Generator Tab -->
@@ -37,19 +42,21 @@
             <div class="form-container">
                 <form id="trafficForm">
                     <div class="form-group">
-                        <label for="keyword">Kata Kunci Pencarian:</label>
+                        <label for="keyword">🔍 Kata Kunci Pencarian:</label>
                         <input type="text" id="keyword" name="keyword" 
                                value="teknologi terbaru 2024" required>
+                        <small>Kata kunci yang akan dicari di Google</small>
                     </div>
                     
                     <div class="form-group">
-                        <label for="website_url">URL Target Website:</label>
+                        <label for="website_url">🌐 URL Target Website:</label>
                         <input type="text" id="website_url" name="website_url" 
-                               placeholder="contoh.com" required>
+                               placeholder="example.com" required>
+                        <small>Website yang ingin dikunjungi (tanpa https://)</small>
                     </div>
                     
                     <div class="form-group">
-                        <label for="iterations">Jumlah Iterasi:</label>
+                        <label for="iterations">🔄 Jumlah Iterasi:</label>
                         <select id="iterations" name="iterations">
                             <option value="1">1</option>
                             <option value="3">3</option>
@@ -61,10 +68,10 @@
                     
                     <div class="button-group">
                         <button type="button" id="startBtn" onclick="startTraffic()">
-                            🚀 Mulai Traffic
+                            🚀 Mulai Traffic Generation
                         </button>
                         <button type="button" id="stopBtn" onclick="stopTraffic()" disabled>
-                            ⏹️ Hentikan
+                            ⏹️ Hentikan Process
                         </button>
                     </div>
                 </form>
@@ -75,55 +82,85 @@
         <div id="proxyTab" class="tab-content">
             <div class="proxy-management">
                 <div class="form-group">
-                    <label for="proxies">Daftar Proxy (satu per baris, format: http://ip:port):</label>
-                    <textarea id="proxies" name="proxies" rows="10" 
+                    <label for="proxies">📋 Daftar Proxy (satu per baris):</label>
+                    <textarea id="proxies" name="proxies" rows="8" 
                               placeholder="http://45.77.56.101:3128&#10;http://51.158.68.68:8811&#10;http://163.172.157.7:8080"></textarea>
+                    <small>Format: http://ip:port atau https://ip:port</small>
                 </div>
                 
                 <div class="button-group">
                     <button type="button" onclick="updateProxies()">
-                        💾 Simpan Proxy
+                        💾 Simpan Proxy List
                     </button>
                     <button type="button" onclick="checkProxies()">
-                        🔍 Cek Proxy Aktif
+                        🔍 Test Proxy Aktif
                     </button>
                     <button type="button" onclick="loadDefaultProxies()">
-                        📥 Load Default
+                        📥 Load Default Proxy
                     </button>
                 </div>
                 
                 <div class="proxy-lists">
                     <div class="proxy-list">
-                        <h4>Proxy Aktif (<span id="activeCount">0</span>):</h4>
+                        <h4>✅ Proxy Aktif (<span id="activeCount">0</span>):</h4>
                         <div id="activeProxies" class="proxy-list-container"></div>
                     </div>
                     
                     <div class="proxy-list">
-                        <h4>Semua Proxy (<span id="totalCount">0</span>):</h4>
+                        <h4>📋 Semua Proxy (<span id="totalCount">0</span>):</h4>
                         <div id="allProxies" class="proxy-list-container"></div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="status-container">
-            <h3>Status Real-time:</h3>
-            <div id="statusDisplay" class="status">Ready</div>
-            <div class="progress-container">
-                <div class="progress-bar">
-                    <div id="progressFill" class="progress-fill"></div>
+        <!-- Live View Tab -->
+        <div id="liveViewTab" class="tab-content">
+            <div class="live-view-container">
+                <div class="live-status">
+                    <h3>📊 Real-time Status</h3>
+                    <div class="status-cards">
+                        <div class="status-card">
+                            <div class="status-title">Status Utama</div>
+                            <div id="mainStatus" class="status-value">Ready</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-title">Step Saat Ini</div>
+                            <div id="currentStep" class="status-value">Menunggu proses dimulai...</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-title">Proxy Aktif</div>
+                            <div id="currentProxy" class="status-value">-</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-title">Website Dibuka</div>
+                            <div id="websiteStatus" class="status-value">-</div>
+                        </div>
+                    </div>
                 </div>
-                <span id="progressText">0%</span>
+                
+                <div class="progress-section">
+                    <h3>📈 Progress</h3>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                        <span id="progressText">0%</span>
+                    </div>
+                    <div id="iterationProgress" class="iteration-progress">Iterasi: 0/0</div>
+                </div>
+                
+                <div class="screenshot-section">
+                    <h3>🖼️ Live Screenshot</h3>
+                    <div id="screenshotContainer" class="screenshot-container">
+                        <div class="no-screenshot">
+                            <p>📷 Screenshot akan muncul di sini saat proses berjalan</p>
+                            <p><small>Browser akan menampilkan screenshot setiap step</small></p>
+                        </div>
+                        <img id="liveScreenshot" class="screenshot-image" style="display: none;">
+                    </div>
+                </div>
             </div>
-        </div>
-        
-        <div class="log-container">
-            <h3>Log Aktivitas:</h3>
-            <div class="log-controls">
-                <button onclick="clearLog()">🧹 Bersihkan Log</button>
-                <button onclick="exportLog()">📥 Export Log</button>
-            </div>
-            <div id="logDisplay" class="log"></div>
         </div>
     </div>
 
@@ -162,9 +199,17 @@
             };
             
             if (!formData.website_url) {
-                alert('Masukkan URL target website!');
+                alert('⚠️ Masukkan URL target website!');
                 return;
             }
+            
+            if (!formData.keyword) {
+                alert('⚠️ Masukkan kata kunci pencarian!');
+                return;
+            }
+            
+            // Switch to live view tab
+            openTab('liveViewTab');
             
             fetch('/start_traffic', {
                 method: 'POST',
@@ -175,15 +220,14 @@
             })
             .then(response => response.json())
             .then(data => {
-                addLog('🚀 Memulai proses traffic generation...');
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('stopBtn').disabled = false;
                 
                 // Mulai polling status
-                statusInterval = setInterval(updateStatus, 1000);
+                statusInterval = setInterval(updateStatus, 1500);
             })
             .catch(error => {
-                addLog('❌ Error: ' + error.message);
+                console.error('Error:', error);
             });
         }
         
@@ -193,7 +237,6 @@
             })
             .then(response => response.json())
             .then(data => {
-                addLog('⏹️ Menghentikan traffic generation...');
                 document.getElementById('startBtn').disabled = false;
                 document.getElementById('stopBtn').disabled = true;
                 clearInterval(statusInterval);
@@ -204,27 +247,48 @@
             fetch('/status')
             .then(response => response.json())
             .then(data => {
-                document.getElementById('statusDisplay').textContent = data.status;
-                document.getElementById('globalStatus').textContent = data.status.split(':')[0];
+                // Update main status
+                document.getElementById('mainStatus').textContent = data.status;
+                document.getElementById('globalStatus').textContent = data.status;
+                
+                // Update current step
+                document.getElementById('currentStep').textContent = data.current_step;
+                
+                // Update proxy info
+                document.getElementById('currentProxy').textContent = data.proxy || '-';
+                
+                // Update website status
+                document.getElementById('websiteStatus').textContent = data.website_opened ? '✅ Berhasil' : '❌ Gagal';
+                document.getElementById('websiteStatus').className = 'status-value ' + 
+                    (data.website_opened ? 'status-success' : 'status-error');
                 
                 // Update progress
                 if (data.total_iterations > 0) {
                     const progress = (data.current_iteration / data.total_iterations) * 100;
                     document.getElementById('progressFill').style.width = progress + '%';
                     document.getElementById('progressText').textContent = Math.round(progress) + '%';
+                    document.getElementById('iterationProgress').textContent = 
+                        `Iterasi: ${data.current_iteration}/${data.total_iterations}`;
+                    document.getElementById('iterationStatus').textContent = 
+                        `${data.current_iteration}/${data.total_iterations}`;
                 }
                 
-                if (data.status && !data.status.includes('Ready')) {
-                    addLog(data.status);
+                // Update screenshot
+                if (data.screenshot) {
+                    const screenshotImg = document.getElementById('liveScreenshot');
+                    screenshotImg.src = data.screenshot;
+                    screenshotImg.style.display = 'block';
+                    document.querySelector('.no-screenshot').style.display = 'none';
                 }
                 
                 // Jika selesai, enable start button
                 if (data.status.includes('selesai') || data.status.includes('Error') || data.status.includes('Dihentikan')) {
                     document.getElementById('startBtn').disabled = false;
                     document.getElementById('stopBtn').disabled = true;
-                    document.getElementById('progressFill').style.width = '0%';
-                    document.getElementById('progressText').textContent = '0%';
                 }
+            })
+            .catch(error => {
+                console.error('Error fetching status:', error);
             });
         }
         
@@ -254,6 +318,11 @@
         function updateProxies() {
             const proxiesText = document.getElementById('proxies').value;
             
+            if (!proxiesText) {
+                alert('⚠️ Masukkan daftar proxy!');
+                return;
+            }
+            
             fetch('/update_proxies', {
                 method: 'POST',
                 headers: {
@@ -271,7 +340,7 @@
         }
         
         function checkProxies() {
-            addLog('🔍 Memeriksa proxy yang aktif...');
+            alert('🔍 Memeriksa proxy yang aktif...');
             loadProxies();
         }
         
@@ -288,41 +357,6 @@ http://217.182.120.164:8080`;
             document.getElementById('proxies').value = defaultProxies;
         }
         
-        function addLog(message) {
-            const logDisplay = document.getElementById('logDisplay');
-            const timestamp = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
-            logDisplay.prepend(logEntry);
-            
-            // Limit log entries
-            if (logDisplay.children.length > 100) {
-                logDisplay.removeChild(logDisplay.lastChild);
-            }
-        }
-        
-        function clearLog() {
-            document.getElementById('logDisplay').innerHTML = '';
-        }
-        
-        function exportLog() {
-            const logEntries = document.querySelectorAll('.log-entry');
-            let logText = 'Google Traffic Generator Log\\n\\n';
-            
-            logEntries.forEach(entry => {
-                logText += entry.textContent + '\\n';
-            });
-            
-            const blob = new Blob([logText], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'traffic-log.txt';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
         // Load proxies on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadProxies();
@@ -330,4 +364,4 @@ http://217.182.120.164:8080`;
         });
     </script>
 </body>
-                          </html>
+    </html>
