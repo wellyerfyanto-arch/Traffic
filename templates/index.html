@@ -4,227 +4,141 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Google Traffic Generator</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #333; text-align: center; margin-bottom: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
-        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
-        textarea { height: 100px; font-family: monospace; }
-        .button-group { display: flex; gap: 10px; margin: 20px 0; }
-        button { flex: 1; padding: 12px; border: none; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; }
-        #startBtn { background: #28a745; color: white; }
-        #testBtn { background: #17a2b8; color: white; }
-        #stopBtn { background: #dc3545; color: white; }
-        button:disabled { background: #6c757d; cursor: not-allowed; }
-        .status-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #007bff; }
-        .step-box { background: #343a40; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 12px; }
-        .progress { width: 100%; background: #e9ecef; border-radius: 5px; height: 20px; margin: 10px 0; }
-        .progress-bar { background: #28a745; height: 100%; border-radius: 5px; width: 0%; transition: width 0.3s; }
-        .tabs { display: flex; margin-bottom: 20px; }
-        .tab { padding: 10px 20px; background: #e9ecef; border: none; cursor: pointer; flex: 1; }
-        .tab.active { background: #007bff; color: white; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
         <h1>Google Traffic Generator</h1>
         
-        <div class="tabs">
-            <button class="tab active" onclick="openTab('traffic')">Traffic</button>
-            <button class="tab" onclick="openTab('proxy')">Proxy</button>
+        <div class="form-container">
+            <form id="trafficForm">
+                <div class="form-group">
+                    <label for="proxies">Daftar Proxy (satu per baris):</label>
+                    <textarea id="proxies" name="proxies" rows="10" placeholder="Contoh: 123.456.789.100:8080&#10;123.456.789.101:8080" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="target_url">URL Target:</label>
+                    <input type="url" id="target_url" name="target_url" placeholder="https://example.com" required>
+                </div>
+                
+                <button type="submit" id="startBtn">Mulai Traffic</button>
+            </form>
         </div>
         
-        <div id="traffic" class="tab-content active">
-            <div class="form-group">
-                <label for="keyword">Keyword:</label>
-                <input type="text" id="keyword" value="technology news" required>
+        <div id="statusContainer" class="status-container hidden">
+            <h2>Status Proses</h2>
+            <div id="statusDisplay" class="status-display">
+                Menunggu proses dimulai...
             </div>
+            <div class="progress-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>Petunjuk Penggunaan:</h3>
+            <ol>
+                <li>Masukkan daftar proxy (format: IP:PORT)</li>
+                <li>Masukkan URL target yang ingin ditingkatkan traffic-nya</li>
+                <li>Klik "Mulai Traffic" untuk memulai proses</li>
+                <li>Pantau status proses di bagian bawah</li>
+            </ol>
             
-            <div class="form-group">
-                <label for="website_url">Website URL:</label>
-                <input type="text" id="website_url" placeholder="example.com" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="iterations">Iterations:</label>
-                <select id="iterations">
-                    <option value="1">1</option>
-                    <option value="3">3</option>
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                </select>
-            </div>
-            
-            <div class="button-group">
-                <button id="startBtn" onclick="startTraffic()">Start Traffic</button>
-                <button id="testBtn" onclick="testSingle()">Test Single</button>
-                <button id="stopBtn" onclick="stopTraffic()" disabled>Stop</button>
-            </div>
-        </div>
-        
-        <div id="proxy" class="tab-content">
-            <div class="form-group">
-                <label for="proxies">Proxy List (one per line):</label>
-                <textarea id="proxies" placeholder="http://ip:port"></textarea>
-            </div>
-            
-            <div class="button-group">
-                <button onclick="updateProxies()">Save Proxies</button>
-                <button onclick="checkProxies()">Check Proxies</button>
-            </div>
-        </div>
-        
-        <div class="status-box">
-            <strong>Status:</strong> <span id="statusText">Ready</span>
-        </div>
-        
-        <div class="step-box" id="stepText">
-            Waiting for command...
-        </div>
-        
-        <div class="progress">
-            <div class="progress-bar" id="progressBar"></div>
-        </div>
-        <div style="text-align: center;">
-            <span id="progressText">0%</span> | 
-            <span id="iterationText">Iteration: 0/0</span>
+            <h3>Proses yang dijalankan:</h3>
+            <ul>
+                <li>✓ Memeriksa proxy yang aktif</li>
+                <li>✓ Membuka browser Chrome</li>
+                <li>✓ Menggunakan user agent acak</li>
+                <li>✓ Memeriksa kebocoran data</li>
+                <li>✓ Melakukan pencarian Google</li>
+                <li>✓ Mengklik hasil teratas</li>
+                <li>✓ Mensimulasikan perilaku pengguna</li>
+                <li>✓ Menutup iklan yang muncul</li>
+            </ul>
         </div>
     </div>
 
     <script>
-        let statusInterval;
-        
-        function openTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            document.getElementById(tabName).style.display = 'block';
-            event.currentTarget.classList.add('active');
-        }
-        
-        function startTraffic() {
-            const data = {
-                keyword: document.getElementById('keyword').value,
-                website_url: document.getElementById('website_url').value,
-                iterations: parseInt(document.getElementById('iterations').value)
-            };
+        document.getElementById('trafficForm').addEventListener('submit', function(e) {
+            e.preventDefault();
             
-            if (!data.keyword || !data.website_url) {
-                alert('Please fill in all fields');
-                return;
-            }
+            const startBtn = document.getElementById('startBtn');
+            const statusContainer = document.getElementById('statusContainer');
+            const statusDisplay = document.getElementById('statusDisplay');
+            const progressBar = document.getElementById('progressBar');
+            
+            startBtn.disabled = true;
+            startBtn.textContent = 'Memproses...';
+            statusContainer.classList.remove('hidden');
+            statusDisplay.textContent = 'Menginisialisasi proses...';
+            progressBar.style.width = '0%';
+            
+            const formData = {
+                proxies: document.getElementById('proxies').value,
+                target_url: document.getElementById('target_url').value
+            };
             
             fetch('/start_traffic', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            }).then(response => response.json()).then(data => {
-                if (data.status === 'error') {
-                    alert(data.message);
-                    return;
-                }
-                document.getElementById('startBtn').disabled = true;
-                document.getElementById('testBtn').disabled = true;
-                document.getElementById('stopBtn').disabled = false;
-                statusInterval = setInterval(updateStatus, 1000);
-            }).catch(error => console.error('Error:', error));
-        }
-        
-        function testSingle() {
-            const data = {
-                keyword: document.getElementById('keyword').value,
-                website_url: document.getElementById('website_url').value,
-                iterations: 1
-            };
-            
-            if (!data.keyword || !data.website_url) {
-                alert('Please fill in all fields');
-                return;
-            }
-            
-            fetch('/start_traffic', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            }).then(response => response.json()).then(data => {
-                if (data.status === 'error') {
-                    alert(data.message);
-                    return;
-                }
-                document.getElementById('startBtn').disabled = true;
-                document.getElementById('testBtn').disabled = true;
-                document.getElementById('stopBtn').disabled = false;
-                statusInterval = setInterval(updateStatus, 1000);
-            }).catch(error => console.error('Error:', error));
-        }
-        
-        function stopTraffic() {
-            fetch('/stop_traffic', {method: 'POST'})
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('startBtn').disabled = false;
-                document.getElementById('testBtn').disabled = false;
-                document.getElementById('stopBtn').disabled = true;
-                clearInterval(statusInterval);
-            });
-        }
-        
-        function updateStatus() {
-            fetch('/status')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('statusText').textContent = data.status;
-                document.getElementById('stepText').textContent = data.current_step;
-                
-                if (data.total_iterations > 0) {
-                    const progress = (data.current_iteration / data.total_iterations) * 100;
-                    document.getElementById('progressBar').style.width = progress + '%';
-                    document.getElementById('progressText').textContent = Math.round(progress) + '%';
-                    document.getElementById('iterationText').textContent = 
-                        `Iteration: ${data.current_iteration}/${data.total_iterations}`;
-                }
-                
-                if (data.status.includes('Finished') || data.status.includes('Error') || data.status.includes('Stopped')) {
-                    document.getElementById('startBtn').disabled = false;
-                    document.getElementById('testBtn').disabled = false;
-                    document.getElementById('stopBtn').disabled = true;
-                }
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
             })
-            .catch(error => console.error('Error:', error));
-        }
-        
-        function updateProxies() {
-            const proxiesText = document.getElementById('proxies').value;
-            if (!proxiesText) {
-                alert('Please enter proxies');
-                return;
-            }
-            
-            fetch('/update_proxies', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ proxies: proxiesText })
-            }).then(response => response.json()).then(data => {
-                alert(data.message);
-            });
-        }
-        
-        function checkProxies() {
-            fetch('/get_proxies')
             .then(response => response.json())
             .then(data => {
-                alert(`Total: ${data.total_proxies}, Working: ${data.working_proxies}`);
+                if (data.error) {
+                    statusDisplay.textContent = 'Error: ' + data.error;
+                    startBtn.disabled = false;
+                    startBtn.textContent = 'Mulai Traffic';
+                    return;
+                }
+                
+                const sessionId = data.session_id;
+                checkStatus(sessionId);
+            })
+            .catch(error => {
+                statusDisplay.textContent = 'Error: ' + error.message;
+                startBtn.disabled = false;
+                startBtn.textContent = 'Mulai Traffic';
             });
-        }
-        
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            updateStatus();
         });
+        
+        function checkStatus(sessionId) {
+            fetch(`/status/${sessionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const statusDisplay = document.getElementById('statusDisplay');
+                    const progressBar = document.getElementById('progressBar');
+                    const startBtn = document.getElementById('startBtn');
+                    
+                    statusDisplay.textContent = data.status;
+                    
+                    // Update progress bar berdasarkan status
+                    if (data.status.includes('Completed')) {
+                        progressBar.style.width = '100%';
+                        progressBar.style.backgroundColor = '#4CAF50';
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Mulai Traffic';
+                    } else if (data.status.includes('Error')) {
+                        progressBar.style.backgroundColor = '#f44336';
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Mulai Traffic';
+                    } else {
+                        // Incremental progress
+                        const currentWidth = parseInt(progressBar.style.width) || 0;
+                        if (currentWidth < 90) {
+                            progressBar.style.width = (currentWidth + 10) + '%';
+                        }
+                        setTimeout(() => checkStatus(sessionId), 2000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking status:', error);
+                    setTimeout(() => checkStatus(sessionId), 2000);
+                });
+        }
     </script>
 </body>
     </html>
