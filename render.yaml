@@ -3,8 +3,16 @@ services:
     name: google-traffic-app
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: |
+      pip install -r requirements.txt
+      sudo apt-get update
+      sudo apt-get install -y wget
+      wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+      sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+      sudo apt-get install -y chromium-chromedriver
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.4
+      - key: SECRET_KEY
+        generateValue: true
